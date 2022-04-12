@@ -29,8 +29,9 @@ class Logic_engine:
         self.vars = []
         self.belief_base = []
         self.results = {}
+        self.orders = {}
 
-    def prepare(self, expression):
+    def prepare_expression(self, expression):
         expression_prep = expression
         for op in self.operators:
             expression_prep = expression_prep.replace(
@@ -46,7 +47,7 @@ class Logic_engine:
 
     def truth_table(self, expression):
         vars = self.extract_vars(expression)
-        expression_prep = self.prepare(expression)
+        expression_prep = self.prepare_expression(expression)
 
         print(f"{'  '.join(vars)}  {expression}")
         results = {}
@@ -58,8 +59,9 @@ class Logic_engine:
             print(f"{'  '.join(map(str,vals))}{' '*(len(expression)//2)} {res}")
         return vars, results
 
-    def add_expression(self, expression):
+    def add_expression(self, expression, order):
         self.belief_base.append(expression)
+        self.orders[expression] = order
 
     def evaluate_belief_base(self):
         final_expression = f"({self.belief_base[0]})"
@@ -69,7 +71,7 @@ class Logic_engine:
         self.vars, self.knowledge_base = self.truth_table(final_expression)
         return self.knowledge_base
 
-    def logical_test(self, expression):
+    def entailment(self, expression):
         correct_tests = [
             test for test in self.knowledge_base if self.knowledge_base[test] == 1]
         vars = set(self.extract_vars(expression)) - set(self.vars)
@@ -79,15 +81,47 @@ class Logic_engine:
             for test in correct_tests:
                 for var, val in zip(self.vars, test):
                     exec(f"{var} = {val}")
-                expression_prep = self.prepare(expression)
+                expression_prep = self.prepare_expression(expression)
                 res = int(eval(expression_prep))
                 if not res:
-                    return False
-        return True
+                    break
+            else:
+                return True
+        return False
 
     def load_belief_base(self, belief_base):
         self.belief_base = belief_base
 
+    def expansion(self, expression, order):
+        if expression not in self.belief_base:
+            self.add_expression(expression, order)
+            print(f"Expanding {expression}")
+        else:
+            if order > self.orders(expression):
+                self.orders[expression] = order
+                print(f"Updating order of {expression}")
+            print(f"Expansion of {expression} failed")
+
+
+    def revision(self, expression):
+        """
+        1. Consistency - new state should be consistent
+        2. Preference - beliefs that are considered more important should be kept
+        3. Closure - logical consequences of the belief that are accepted should also be accepted
+        4. Information economy - new state should retain as much as possible information from the old state
+        5. Primacy of new information - new information should be preferred over old information
+        """
+        pass
+
+    def contradiction(self, expression):
+        self.belief_base.remove(expression)
+        self.orders.pop(expression)
+    
+    def is_satisfiable(self, expression):
+        vars, results = self.truth_table(expression)
+        if 1 in results.values():
+            return True
+        return False
 
 operators = {
     "F": "Infix(lambda p,q: False)",
@@ -120,11 +154,10 @@ if __name__ == "__main__":
     #         logic_engine.evaluate_belief_base()
     #         break
 
-    logic_engine.add_expression("p V q")
-    logic_engine.add_expression("m & q")
-    logic_engine.add_expression("m => n")
+    logic_engine.add_expression("(p ~ p) => q")
+    logic_engine.add_expression("q => p")
+    logic_engine.add_expression("p => (r & s)")
     logic_engine.evaluate_belief_base()
 
-    print(logic_engine.logical_test("(p ~ p) <-> q"))
-    #logical_test = input("Enter the logical test: ")
-    # logic_engine.logic_test(logical_test)
+    logic_engine.truth_table("p & r & s")
+    print(logic_engine.entailment("(p & r & s)"))
